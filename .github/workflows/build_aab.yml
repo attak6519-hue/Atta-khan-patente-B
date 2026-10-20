@@ -1,0 +1,75 @@
+name: Build Web App to AAB
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Bubblewrap CLI
+        run: npm install -g @bubblewrap/cli
+
+      - name: Generate Keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore android.keystore \
+            -alias android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Quiz Patente, OU=App, O=Atta Khan, L=City, S=State, C=IT"
+
+      - name: Create twa-manifest.json
+        run: |
+          cat << 'EOF' > twa-manifest.json
+          {
+            "packageId": "com.attakhan.quizpatente",
+            "host": "signal-asset-integra-g9iq.bolt.host",
+            "name": "Quiz Patente 2026 Multilingua",
+            "shortName": "Quiz Patente",
+            "startUrl": "/",
+            "display": "standalone",
+            "themeColor": "#000000",
+            "backgroundColor": "#ffffff",
+            "enableNotifications": true,
+            "iconUrl": "https://signal-asset-integra-g9iq.bolt.host/favicon.ico",
+            "splashScreenFadeOutDuration": 300,
+            "signingKey": {
+              "path": "android.keystore",
+              "alias": "android"
+            },
+            "appVersionName": "1.0.0",
+            "appVersionCode": 1,
+            "generatorApp": "bubblewrap-cli"
+          }
+          EOF
+
+      - name: Build Android App Bundle (AAB)
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: android
+          BUBBLEWRAP_KEY_PASSWORD: android
+        run: bubblewrap build --skipKeytoolPrompt
+
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-bundle
+          path: '*.aab'
